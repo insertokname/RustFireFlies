@@ -25,6 +25,11 @@ fn generate_random_transform(
     Transform::from_xyz(rng.gen_range(x_range), rng.gen_range(y_range), 0.)
 }
 
+fn generate_random_charge() -> f32 {
+    let mut rng = rand::thread_rng();
+    rng.gen_range(0.0..FIREFLY_MAX_CHARGE)
+}
+
 pub fn spawn_fireflies(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -37,10 +42,9 @@ pub fn spawn_fireflies(
     let height = window.height() as f32 / 2.;
     let height_range = (-height + FIREFLY_RADIUS)..(height - FIREFLY_RADIUS);
 
-    let firefly_mesh = Mesh2dHandle(meshes.add(Circle::new(FIREFLY_RADIUS)));
-    let firefly_material = materials.add(Color::linear_rgb(1.0, 1.0, 0.0));
-
     for _ in 0..FIREFLY_COUNT {
+        let firefly_mesh = Mesh2dHandle(meshes.add(Circle::new(FIREFLY_RADIUS)));
+        let firefly_material = materials.add(FIREFLY_BASE_COLOR);
         commands.spawn((
             ColorMesh2dBundle {
                 mesh: firefly_mesh.clone(),
@@ -51,6 +55,8 @@ pub fn spawn_fireflies(
             Firefly {
                 speed: generate_random_speed(),
                 direction: generate_random_direction(),
+                charge_amount: generate_random_charge(),
+                light_intensity: 0.,
             },
         ));
     }
@@ -98,3 +104,28 @@ pub fn movement(mut firefly_query: Query<(&mut Firefly, &mut Transform)>, window
         }
     }
 }
+
+pub fn light_manager(
+    mut firefly_query: Query<(&mut Firefly, &mut Handle<ColorMaterial>)>,
+    time: Res<Time>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    for (mut firefly, color) in &mut firefly_query {
+        let color: &mut ColorMaterial = materials.get_mut(color.id()).unwrap();
+        if firefly.charge_amount >= FIREFLY_MAX_CHARGE {
+            firefly.light_intensity = FIREFLY_MAX_INTENSITY;
+            firefly.charge_amount = 0.;
+        }
+
+        if firefly.light_intensity > 0. {
+            firefly.light_intensity -= FIREFLY_INTENSITY_DISCHARGE_RATE * time.delta_seconds();
+            color.color = FIREFLY_BASE_COLOR.mix(
+                &FIREFLY_LIGHTUP_COLOR,
+                firefly.light_intensity / FIREFLY_MAX_INTENSITY,
+            );
+        } else {
+            firefly.charge_amount += FIREFLY_CHARGE_ADD * time.delta_seconds();
+        }
+    }
+}
+

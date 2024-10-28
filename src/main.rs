@@ -25,7 +25,9 @@ fn main() {
     .add_plugins(FrameTimeDiagnosticsPlugin::default())
     .add_systems(Startup, firefly::systems::spawn_fireflies)
     .add_systems(Update, firefly::systems::clamp_on_resize)
+    .add_systems(Update, firefly::systems::light_manager)
     .add_systems(FixedUpdate, firefly::systems::movement)
+    .insert_resource(ClearColor(Color::BLACK))
     .add_systems(Startup, setup_camera)
     .add_plugins(fps::FpsPlugin);
     app.run();
