@@ -30,6 +30,22 @@ fn generate_random_charge() -> f32 {
     rng.gen_range(0.0..FIREFLY_MAX_CHARGE)
 }
 
+fn get_screen_bounds(screen_size: Vec2) -> (Vec2, Vec2) {
+    let mut window_max = screen_size / 2.;
+    let window_min = (window_max - screen_size) + FIREFLY_RADIUS;
+    window_max -= FIREFLY_RADIUS;
+    (window_min, window_max)
+}
+
+fn get_screen_ranges(
+    screen_size: Vec2,
+) -> (impl SampleRange<f32> + Clone, impl SampleRange<f32> + Clone) {
+    let (window_min, window_max) = get_screen_bounds(screen_size);
+    let width_range = (window_min.x + FIREFLY_RADIUS + 1.)..(window_max.x - FIREFLY_RADIUS);
+    let height_range = (window_min.y + FIREFLY_RADIUS + 1.)..(window_max.y - FIREFLY_RADIUS);
+    (width_range, height_range)
+}
+
 pub fn spawn_fireflies(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -37,11 +53,7 @@ pub fn spawn_fireflies(
     windows: Query<&Window>,
 ) {
     let window = windows.single();
-    let width = window.width() as f32 / 2.;
-    let width_range = (-width + FIREFLY_RADIUS)..(width - FIREFLY_RADIUS);
-    let height = window.height() as f32 / 2.;
-    let height_range = (-height + FIREFLY_RADIUS)..(height - FIREFLY_RADIUS);
-
+    let (width_range, height_range) = get_screen_ranges(window.size());
     for _ in 0..FIREFLY_COUNT {
         let firefly_mesh = Mesh2dHandle(meshes.add(Circle::new(FIREFLY_RADIUS)));
         let firefly_material = materials.add(FIREFLY_BASE_COLOR);
@@ -60,13 +72,6 @@ pub fn spawn_fireflies(
             },
         ));
     }
-}
-
-fn get_screen_bounds(screen_size: Vec2) -> (Vec2, Vec2) {
-    let mut window_max = screen_size / 2.;
-    let window_min = (window_max - screen_size) + FIREFLY_RADIUS;
-    window_max -= FIREFLY_RADIUS;
-    (window_min, window_max)
 }
 
 pub fn clamp_on_resize(
@@ -105,6 +110,21 @@ pub fn movement(mut firefly_query: Query<(&mut Firefly, &mut Transform)>, window
     }
 }
 
+pub fn scramble_fireflies(
+    mut firefly_query: Query<&mut Transform, With<Firefly>>,
+    windows: Query<&Window>,
+    keys: Res<ButtonInput<KeyCode>>,
+) {
+    if keys.just_pressed(KeyCode::Space) {
+        let window = windows.single();
+        let (width_range, height_range) = get_screen_ranges(window.size());
+
+        for mut transform in &mut firefly_query {
+            *transform = generate_random_transform(width_range.clone(), height_range.clone());
+        }
+    }
+}
+
 pub fn light_manager(
     mut firefly_query: Query<(&mut Firefly, &mut Handle<ColorMaterial>)>,
     time: Res<Time>,
@@ -116,16 +136,14 @@ pub fn light_manager(
             firefly.light_intensity = FIREFLY_MAX_INTENSITY;
             firefly.charge_amount = 0.;
         }
+        firefly.charge_amount += FIREFLY_CHARGE_ADD * time.delta_seconds();
 
         if firefly.light_intensity > 0. {
-            firefly.light_intensity -= FIREFLY_INTENSITY_DISCHARGE_RATE * time.delta_seconds();
             color.color = FIREFLY_BASE_COLOR.mix(
                 &FIREFLY_LIGHTUP_COLOR,
                 firefly.light_intensity / FIREFLY_MAX_INTENSITY,
             );
-        } else {
-            firefly.charge_amount += FIREFLY_CHARGE_ADD * time.delta_seconds();
+            firefly.light_intensity -= FIREFLY_INTENSITY_DISCHARGE_RATE * time.delta_seconds();
         }
     }
 }
-

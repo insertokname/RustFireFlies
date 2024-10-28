@@ -3,9 +3,9 @@ use bevy::color::Color;
 pub mod component;
 pub mod systems;
 
-pub const FIREFLY_RADIUS: f32 = 10.;
+pub const FIREFLY_RADIUS: f32 = 7.;
 
-pub const FIREFLY_COUNT: i32 = 100;
+pub const FIREFLY_COUNT: i32 = 1000;
 
 pub const FIREFLY_MIN_SPEED: f32 = 1.;
 pub const FIREFLY_MAX_SPEED: f32 = 1.;
