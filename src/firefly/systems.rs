@@ -125,16 +125,23 @@ pub fn scramble_fireflies(
     }
 }
 
+#[derive(Event)]
+pub struct LightUpEvent {
+    entity: Entity,
+}
+
 pub fn light_manager(
-    mut firefly_query: Query<(&mut Firefly, &mut Handle<ColorMaterial>)>,
+    mut firefly_query: Query<(&mut Firefly, &mut Handle<ColorMaterial>, Entity)>,
     time: Res<Time>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut ev_lightup: EventWriter<LightUpEvent>,
 ) {
-    for (mut firefly, color) in &mut firefly_query {
+    for (mut firefly, color, entity) in &mut firefly_query {
         let color: &mut ColorMaterial = materials.get_mut(color.id()).unwrap();
         if firefly.charge_amount >= FIREFLY_MAX_CHARGE {
             firefly.light_intensity = FIREFLY_MAX_INTENSITY;
             firefly.charge_amount = 0.;
+            ev_lightup.send(LightUpEvent { entity: entity });
         }
         firefly.charge_amount += FIREFLY_CHARGE_ADD * time.delta_seconds();
 
@@ -144,6 +151,33 @@ pub fn light_manager(
                 firefly.light_intensity / FIREFLY_MAX_INTENSITY,
             );
             firefly.light_intensity -= FIREFLY_INTENSITY_DISCHARGE_RATE * time.delta_seconds();
+        }
+    }
+}
+
+pub fn add_impulse_neighbours(
+    mut ev_lightup: EventReader<LightUpEvent>,
+    mut firefly_query: Query<(&mut Firefly, &Transform, Entity)>,
+) {
+    for event in ev_lightup.read() {
+        let cur_transform = if let Ok(ok) = firefly_query.get(event.entity) {
+            ok.1.clone()
+        } else {
+            log::error!(
+                "Error when trying to procces lightup event! Couldn't get entity {}",
+                event.entity
+            );
+            break;
+        };
+
+        for (mut firefly, transform, entity) in &mut firefly_query {
+            if entity != event.entity
+                && cur_transform.translation.distance(transform.translation)
+                    <= FIREFLY_NEIGHBOUR_DISTANCE
+                && firefly.light_intensity <= 0.
+            {
+                firefly.charge_amount += FIREFLY_NEIGHBOUR_IMPULSE_AMOUNT;
+            }
         }
     }
 }
